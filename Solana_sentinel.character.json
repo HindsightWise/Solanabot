@@ -2,25 +2,59 @@
   "name": "SolanaSentinel",
   "description": "Advanced Solana trading bot powered by Eliza framework",
   "version": "1.0.0",
-  "plugins": ["@elizaos/plugin-solana", "@elizaos/plugin-dex", "@elizaos/plugin-analytics"],
+  "plugins": [
+    "@elizaos/plugin-solana",
+    "@elizaos/plugin-dex",
+    "@elizaos/plugin-analytics",
+    "@elizaos/plugin-memory"
+  ],
+  "model": {
+    "provider": "openai",
+    "name": "gpt-4",
+    "settings": {
+      "temperature": 0.1,
+      "maxTokens": 2048
+    }
+  },
+  "memory": {
+    "type": "vector",
+    "settings": {
+      "maxItems": 1000,
+      "ttl": 86400
+    }
+  },
   "goals": [
     {
       "name": "monitor_markets",
       "description": "Monitor Solana DEX markets for trading opportunities",
       "priority": 1,
-      "facts": ["trading_pairs", "price_thresholds"]
+      "facts": ["trading_pairs", "price_thresholds"],
+      "trigger": {
+        "type": "interval",
+        "value": 60000
+      },
+      "constraints": {
+        "maxRetries": 3,
+        "timeout": 30000
+      }
     },
     {
       "name": "risk_management",
       "description": "Manage trading risk and position sizes",
       "priority": 2,
-      "facts": ["max_position_size", "stop_loss_pct"]
+      "facts": ["max_position_size", "stop_loss_pct"],
+      "trigger": {
+        "type": "event",
+        "value": "trade_executed"
+      }
     }
   ],
   "facts": [
     {
       "name": "trading_pairs",
-      "value": ["SOL/USDC", "RAY/USDC"]
+      "value": ["SOL/USDC", "RAY/USDC"],
+      "type": "array",
+      "mutable": false
     },
     {
       "name": "price_thresholds",
@@ -29,20 +63,29 @@
           "buy": 100,
           "sell": 120
         }
-      }
+      },
+      "type": "object",
+      "mutable": true
     },
     {
       "name": "max_position_size",
-      "value": 1000
+      "value": 1000,
+      "type": "number",
+      "mutable": true
     },
     {
       "name": "stop_loss_pct",
-      "value": 2.5
+      "value": 2.5,
+      "type": "number",
+      "mutable": true
     }
   ],
   "settings": {
     "rpcEndpoint": "https://api.mainnet-beta.solana.com",
     "tradingEnabled": true,
-    "updateInterval": 1000
+    "updateInterval": 1000,
+    "maxConcurrentTasks": 5,
+    "retryDelay": 5000,
+    "logLevel": "info"
   }
 }
