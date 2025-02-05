@@ -1,0 +1,48 @@
+{
+  "name": "SolanaSentinel",
+  "description": "Advanced Solana trading bot powered by Eliza framework",
+  "version": "1.0.0",
+  "plugins": ["@elizaos/plugin-solana", "@elizaos/plugin-dex", "@elizaos/plugin-analytics"],
+  "goals": [
+    {
+      "name": "monitor_markets",
+      "description": "Monitor Solana DEX markets for trading opportunities",
+      "priority": 1,
+      "facts": ["trading_pairs", "price_thresholds"]
+    },
+    {
+      "name": "risk_management",
+      "description": "Manage trading risk and position sizes",
+      "priority": 2,
+      "facts": ["max_position_size", "stop_loss_pct"]
+    }
+  ],
+  "facts": [
+    {
+      "name": "trading_pairs",
+      "value": ["SOL/USDC", "RAY/USDC"]
+    },
+    {
+      "name": "price_thresholds",
+      "value": {
+        "SOL/USDC": {
+          "buy": 100,
+          "sell": 120
+        }
+      }
+    },
+    {
+      "name": "max_position_size",
+      "value": 1000
+    },
+    {
+      "name": "stop_loss_pct",
+      "value": 2.5
+    }
+  ],
+  "settings": {
+    "rpcEndpoint": "https://api.mainnet-beta.solana.com",
+    "tradingEnabled": true,
+    "updateInterval": 1000
+  }
+}
