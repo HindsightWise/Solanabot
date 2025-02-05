@@ -1,5 +1,10 @@
 packages:
-    - "docs"
-    - "packages/*"
-    - "client"
-    - "agent"
+  # Core packages
+  - 'packages/core'
+  - 'packages/plugin-*'
+  
+  # Exclude test files, docs, and examples
+  - '!**/test/**'
+  - '!**/docs/**'
+  - '!**/examples/**'
+  - '!**/__tests__/**'
