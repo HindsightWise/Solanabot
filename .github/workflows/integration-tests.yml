@@ -1,0 +1,46 @@
+name: Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      localnet:
+        image: solanalabs/solana:stable
+        ports:
+          - 8899:8899
+          - 8900:8900
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.0
+          
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Start local validator
+        run: |
+          solana-test-validator &
+          sleep 10
+        
+      - name: Run tests
+        run: pnpm test:integration
+        env:
+          RPC_ENDPOINT: http://localhost:8899
+          WALLET_PUBLIC_KEY: ${{ secrets.TEST_WALLET_KEY }}
+          TEST_MODE: true
+          LOG_LEVEL: debug
