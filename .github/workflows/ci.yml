@@ -1,0 +1,138 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.0
+          
+      - name: Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pnpm-store
+            **/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type Check
+        run: |
+          pnpm tsc --noEmit
+          pnpm check:types
+
+      - name: Code Format Check
+        run: |
+          pnpm format:check
+          pnpm lint:style
+
+      - name: Static Analysis
+        run: |
+          pnpm lint
+          pnpm check:circular
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Run Unit Tests
+        run: pnpm test:coverage
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  integration:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    services:
+      solana:
+        image: solanalabs/solana:v1.17
+        ports:
+          - 8899:8899
+          - 8900:8900
+        options: >-
+          --health-cmd "solana-test-validator --help"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+
+      - name: Install Dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Setup Solana Test Validator
+        run: |
+          solana-test-validator &
+          sleep 10
+          solana config set --url http://localhost:8899
+
+      - name: Run Integration Tests
+        run: pnpm test:integration
+        env:
+          RPC_ENDPOINT: http://localhost:8899
+          TEST_WALLET_KEY: ${{ secrets.TEST_WALLET_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
+
+  deploy:
+    needs: [quality, integration]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t solanabot:${{ github.sha }} .
+          docker tag solanabot:${{ github.sha }} ${{ secrets.ECR_REGISTRY }}/solanabot:${{ github.sha }}
+          docker push ${{ secrets.ECR_REGISTRY }}/solanabot:${{ github.sha }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: .aws/task-definition.json
+          container-name: solanabot
+          image: ${{ secrets.ECR_REGISTRY }}/solanabot:${{ github.sha }}
+          cluster: solanabot-cluster
+          service: solanabot-service
